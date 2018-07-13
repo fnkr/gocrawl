@@ -1,0 +1,23 @@
+language: go
+
+go:
+  - stable
+
+before_script:
+  - cd cmd
+
+script:
+  - go test
+  - GOOS=linux   GOARCH=amd64 go build -o builds/gocrawl_linux-amd64
+  - GOOS=darwin  GOARCH=amd64 go build -o builds/gocrawl_darwin-amd64
+  - GOOS=windows GOARCH=amd64 go build -o builds/gocrawl_windows-amd64.exe
+  - GOOS=freebsd GOARCH=amd64 go build -o builds/gocrawl_freebsd-amd64
+
+deploy:
+  provider: releases
+  api_key: "$GITHUB_TOKEN"
+  file_glob: true
+  file: builds/gocrawl_*
+  skip_cleanup: true
+  on:
+    tags: true
