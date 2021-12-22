@@ -1,0 +1,84 @@
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - v*
+  pull_request: {}
+name: gocrawl
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go:
+          - 1.16
+          - 1.17
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Test
+        run: go version && go test -v ./...
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go:
+          - 1.17
+        os:
+          - linux
+          - darwin
+        arch:
+          - amd64
+          - arm64
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Clone repository
+        uses: actions/checkout@v2
+      - name: Run build
+        run: go version && (cd cmd && GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -ldflags "-s -w" -o ../gocrawl_${{ matrix.os }}_${{ matrix.arch }})
+      - name: Calculate checksum
+        run: sha256sum gocrawl_${{ matrix.os }}_${{ matrix.arch }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v1
+        with:
+          name: gocrawl_${{ matrix.os }}_${{ matrix.arch }}
+          path: gocrawl_${{ matrix.os }}_${{ matrix.arch }}
+  release_github:
+    if: startsWith(github.event.ref, 'refs/tags/')
+    needs:
+      - test
+      - build
+    name: Release (GitHub)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go:
+          - 1.17
+        os:
+          - linux
+          - darwin
+        arch:
+          - amd64
+          - arm64
+      max-parallel: 1
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v1
+        with:
+          name: gocrawl_${{ matrix.os }}_${{ matrix.arch }}
+      - name: Create release
+        uses: fnkr/github-action-ghr@v1
+        env:
+          GHR_COMPRESS: gz
+          GHR_PATH: gocrawl_${{ matrix.os }}_${{ matrix.arch }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
